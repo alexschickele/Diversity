@@ -27,16 +27,20 @@ diversity_assessment <- function(INPUT_FOLDER,
   # --- 1.1. Load CALL
   load(paste0(INPUT_FOLDER,"/CALL.RData"))
   
-  # --- 1.2. Initialize DIVERSITY save object
+  # --- 1.2. Create folder if its not available yet
+  if(file.exists(OUTPUT_FOLDER)==FALSE){
+    dir.create(OUTPUT_FOLDER)
+  }
+  
+  # --- 1.3. Initialize DIVERSITY save object
   DIVERSITY <- list()
   
-  
-  # --- 1.3. Dummy raster
+  # --- 1.4. Dummy raster
   r0 <- raster::raster(nrows=180, ncols=360, xmn=-180, xmx=180, ymn=-90, ymx=90, 
                        vals=NA)
   
   
-  # --- 1.4. Binarize function for richness
+  # --- 1.5. Binarize function for richness
   binarize_hsi <- function(y_hat, q = seq(max(0, min(y_hat, na.rm = TRUE)), # security if min > 0.25
                                           min(1, max(y_hat, na.rm = TRUE)), # security if max < 0.75
                                           length.out = 50)){
@@ -91,7 +95,7 @@ diversity_assessment <- function(INPUT_FOLDER,
     } else {
       return(NULL)
     } # if model list
-  }, mc.cores = MAX_CLUSTERS) %>% .[lengths(.) != 0]
+  }, mc.cores = round(MAX_CLUSTERS/2, 0)) %>% .[lengths(.) != 0]
   
   # --- 2.2. Loop over the files
   message(paste0(Sys.time(), "--- DIVERSITY: build the ensembles - loop over files"))
@@ -111,7 +115,7 @@ diversity_assessment <- function(INPUT_FOLDER,
     } else {
       m <- MODEL[[x$MODEL_LIST]][["proj"]]$y_hat
     } # end if
-  }, mc.cores = MAX_CLUSTERS, mc.cleanup = TRUE)
+  }, mc.cores = round(MAX_CLUSTERS/2, 0), mc.cleanup = TRUE)
   
   # --- 2.3. Stack in a cell x species x bootstrap x month matrix
   # --- 2.3.1. Re-arrange the array
@@ -179,7 +183,7 @@ diversity_assessment <- function(INPUT_FOLDER,
     div[full_cell_id] <- div0 # fill non empty cells
     return(div)
     
-  }, mc.cores = round(MAX_CLUSTERS/2, 0)) # limited due to memory use
+  }, mc.cores = MAX_CLUSTERS) # limited due to memory use
   message(paste0(Sys.time(), "--- DIVERSITY: compute alpha - FORMATING"))
   
   # --- 6.2. Back transformation to array
@@ -215,8 +219,7 @@ diversity_assessment <- function(INPUT_FOLDER,
     # We average the composition in the focal and compute the species overlap with the alpha
     message(paste0(Sys.time(), "--- DIVERSITY: compute beta - START"))
     beta_div_list <- mclapply(1:nrow(loop_over), function(x){
-      memory_cleanup() # low memory use
-      s = Sys.time()
+      memory_cleanup() # low memory use 
       # --- 7.2.1. Build the focal community matrix
       df0_focal <- lapply(1:ncol(beta_cell_id[,-1]), function(z){
         memory_cleanup() # low memory use
@@ -243,7 +246,7 @@ diversity_assessment <- function(INPUT_FOLDER,
       
       # --- 7.2.3. Compute diversity
       div0 <- lapply(1:nrow(df0_center), function(z){
-        memory_cleanup() # low memory use
+        # memory_cleanup() # low memory use - slowing the process a lot
         df0 <- rbind(df0_center[z,], df0_focal[z,])
         # Security if communities are equal or composed of absences
         if(nrow(distinct(df0)) == 1 | sum(df0[1,]) == 0 | sum(df0[2,]) == 0){out <- 0} else{
@@ -255,10 +258,9 @@ diversity_assessment <- function(INPUT_FOLDER,
       # --- 7.2.4. Assign cells back
       div <- cell_vector # base
       div[full_cell_id] <- div0 # fill non empty cells
-      Sys.time()-s
       return(div)
       
-    }, mc.cores = round(MAX_CLUSTERS/2, 0)) # take car of the memory use !
+    }, mc.cores = MAX_CLUSTERS) # take care of the memory use !
     message(paste0(Sys.time(), "--- DIVERSITY: compute beta - FORMATTING"))
     
     # --- 7.3. Back transformation to array

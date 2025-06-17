@@ -4,6 +4,7 @@
 .Ruserdata
 
 .run_script.sh
+.euler.R
 
 *.csv
 *.txt

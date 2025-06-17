@@ -28,3 +28,20 @@ italy_pal <- function(n){
   
   return(pal)
 } # END FUNCTION
+
+circular_pal <- function(n = 12){
+  tmp <- c("#2166AC","#67A9CF","#D1E5F0","#F7F7F7","#FDDBC7","#EF8A62","#B2182B","#EF8A62","#FDDBC7","#F7F7F7","#D1E5F0","#67A9CF")
+  pal <- colorRampPalette(tmp)(n)
+} # END FUNCTION
+
+mako_pal <- function(n){
+  tmp <- c("black", "#0A0A32", "#142C50", "#1F4D70", "#2A6D8F", "#368DAE", "#46ABBB", "#64C5BC", "#8DD6B8", "#B7E5B4","white")
+  pal <- colorRampPalette(tmp)(n)
+} # END FUNCTION
+
+rocket_pal <- function(n){
+  tmp <- c("black", "#03051AFF","#2A1636FF","#551E4FFF","#841E5AFF","#B41658FF","#DD2C45FF","#F06043FF","#F5936AFF","#F6C09EFF","#FAEBDDFF","white")
+  pal <- colorRampPalette(tmp)(n)
+} # END FUNCTION
+
+

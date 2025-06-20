@@ -44,4 +44,8 @@ rocket_pal <- function(n){
   pal <- colorRampPalette(tmp)(n)
 } # END FUNCTION
 
+curl_pal <- function(n){
+  tmp <- c("#000000", "#4A1C48", "#C8204E", "#F59E76", "#FFFFFF", "#78CDBA", "#368DAE", "#193C5F", "#000000")
+  pal <- colorRampPalette(tmp)(n)
+} # END FUNCTION
 

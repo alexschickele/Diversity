@@ -20,6 +20,9 @@ land <- ne_countries(scale = 50, returnclass = "sf") %>% .[,1]
 land_raster <- terra::rasterize(land, terra::rast(res = 0.1))  # 0.1-degree resolution
 land_rob <- terra::project(land_raster, robinson_proj)
 
+rm(land, land_raster)
+gc()
+
 # --- 1.7. Quantile scale
 # To make sure its correct across all data types
 quantile_scale <- function(x){
@@ -33,6 +36,9 @@ quantile_scale <- function(x){
 load("/net/meso/work/aschickele/Diversity/output/DIVERSITY_PAPER/METAGENOMICS_raw_diversity.RData")
 tmp <- apply(data, -1, quantile_scale) # rescale
 data <- abind(tmp[1:32400,,,], tmp[32401:64800,,,c(7:12,1:6)], along = 1) # southern hemisphere swap
+dimnames(data)[[2]] <- sub(" \\(.*", "", dimnames(data)[[2]])
+
+data_list <- list(m = data) # start saving in a list for maps later
 
 m <- apply(data, 1, c)  # Collapse
 metadata <- expand.grid(method = sub(" \\(.*", "", dimnames(data)[[2]]),
@@ -47,6 +53,9 @@ gc()
 load("/net/meso/work/aschickele/Diversity/output/DIVERSITY_PAPER/TRADITIONAL_ABUNDANCE_raw_diversity.RData")
 tmp <- apply(data_abundance, -1, quantile_scale) # rescale
 data_abundance <- abind(tmp[1:32400,,,], tmp[32401:64800,,,c(7:12,1:6)], along = 1) # southern hemisphere swap
+dimnames(data_abundance)[[2]] <- sub(" \\(.*", "", dimnames(data_abundance)[[2]])
+
+data_list[["a"]] <- data_abundance # start saving in a list for maps later
 
 a <- apply(data_abundance, 1, c)  # Collapse
 metadata <- expand.grid(method = sub(" \\(.*", "", dimnames(data_abundance)[[2]]),
@@ -61,6 +70,9 @@ gc()
 load("/net/meso/work/aschickele/Diversity/output/DIVERSITY_PAPER/TRADITIONAL_BIOMASS_raw_diversity.RData")
 tmp <- apply(data_biomass, -1, quantile_scale) # rescale
 data_biomass <- abind(tmp[1:32400,,,], tmp[32401:64800,,,c(7:12,1:6)], along = 1) # southern hemisphere swap
+dimnames(data_biomass)[[2]] <- sub(" \\(.*", "", dimnames(data_biomass)[[2]])
+
+data_list[["b"]] <- data_biomass # start saving in a list for maps later
 
 b <- apply(data_biomass, 1, c)  # Collapse
 metadata <- expand.grid(method = sub(" \\(.*", "", dimnames(data_biomass)[[2]]),
@@ -75,6 +87,9 @@ gc()
 load("/net/meso/work/aschickele/Diversity/output/DIVERSITY_PAPER/OCCURRENCE_raw_diversity.RData")
 tmp <- apply(data, -1, quantile_scale) # rescale
 data <- abind(tmp[1:32400,,,], tmp[32401:64800,,,c(7:12,1:6)], along = 1) # southern hemisphere swap
+dimnames(data)[[2]] <- paste("Hill", dimnames(data)[[2]])
+
+data_list[["o"]] <- data # start saving in a list for maps later
 
 o <- apply(data, 1, c)  # Collapse
 metadata <- expand.grid(method = paste("Hill", dimnames(data)[[2]]),
@@ -86,7 +101,7 @@ rm(data)
 gc()
 
 # --- 2.5. Concatenate
-# Bind all individual diversity estimates as rows
+# Bind all individual diversity estimates as rows for PCA
 data <- rbind(m, a, b, o)
 rm(m, a, b, o, metadata)
 gc()
@@ -98,158 +113,135 @@ colnames(data) <- c(paste0("C", 1:64800), "METHOD","BOOTSTRAP","MONTH","DATA_TYP
 id <- which(is.na(apply(data[, 1:64800], 2, sum)))
 data <- data[,-id]
 
-# --- 2.5. Split PCA and RDA data
+# --- 2.6. Split PCA and RDA data
 metadata <- data[, (ncol(data)-3):ncol(data)]
-data <- data[, 1:(ncol(data)-4)]
+data <- data[, 1:(ncol(data)-4)] %>% t()
+
+# --- 2.7. Add cell metadata
+r1 <- terra::rast("/net/meso/work/clercc/Predictors/PIPELINE_SET/climatology_S_PP_regridded.nc") %>% mean()
+r2 <- terra::rast("/net/meso/work/clercc/Predictors/PIPELINE_SET/climatology_n_0_50.nc") %>% mean()
+r3 <- terra::rast("/net/meso/work/clercc/Predictors/PIPELINE_SET/climatology_t_0_50.nc") %>% mean()
+r <- terra::rast(list(r1, r2, r3))
+
+r_point <- extract(x = r, y = 1:64800, xy = TRUE) %>% as.data.frame()
+
+colnames(r_point) <- c("lon","lat","PP", "Nitrate", "Temperature")
+site_metadata <- r_point[-id, -1]
+
+rm(r1, r2, r3, r, r_point)
+gc()
 
 # --- 3. PCA on diversity estimates
 # --- 3.1. Perform PCA // Species = diversity ; sites = geographical cells
-PCA <- vegan::pca(X = t(data), scale = T)
+# Site metadata such as environmental variables or latitude are supplementary
+PCA <- vegan::pca(X = data, scale = T)
+SUP <- vegan::envfit(PCA, site_metadata)
 
 # --- 3.2. Extract contribution of each Principal Component (PC)
 PC_percent <- (eigenvals(PCA)/sum(eigenvals(PCA))) # variance per PC
 
-# --- 3.3. Extract coordinates
+# --- 3.3. Extract scores
 variable_scores <- vegan::scores(PCA, choices = c(1,2), display = "species") %>% 
   cbind(metadata) %>% # association
   group_by(METHOD, MONTH, DATA_TYPE) %>% 
   summarize(PC1 = mean(PC1),
             PC2 = mean(PC2)) %>% 
   ungroup()
-  
-centroids <- lapply(c("METHOD","MONTH","DATA_TYPE"), function(x){
-  variable_scores %>% 
+
+variable_centroids <- lapply(c("DATA_TYPE"), function(x){
+  out <- variable_scores %>% 
     group_by_at(x) %>% 
     summarise(X = mean(PC1), Y = mean(PC2)) %>% 
-    ungroup()
-}) # end lapply
-
-# --- 3.4. Estimate contribution
-# As the squared scores across PC1 and PC2
-contribution <- variable_scores %>% 
-  mutate(contribution = (PC1**2) + (PC2**2)) %>% 
-  dplyr::select(-PC1, -PC2) %>% 
-  mutate(contribution_perc = contribution / sum(contribution))
-
-# Now we compute the average score per factor
-contribution <- lapply(c("METHOD","MONTH","DATA_TYPE"), function(x){
-  tmp <- contribution %>% 
-    group_by_at(x) %>% 
-    summarise(FACTOR = x,
-              contribution_perc = mean(contribution_perc)) %>% 
-    ungroup()
-  colnames(tmp) <- c("MODALITY","FACTOR","contribution_perc")
-  return(tmp)
+    ungroup() %>% as.data.frame()
+  colnames(out) <- c("FACTOR","X","Y")
+  return(out)
 }) %>% bind_rows() # end lapply
 
-# Relative to the mean to be able to compare
-contribution <- contribution %>% 
-  mutate(contribution_perc = (contribution_perc / mean(contribution_perc) -1) %>% abs()) %>% 
-  arrange(contribution_perc)
+sites_scores <- vegan::scores(PCA, choices = c(1,2), display = "sites")
 
-# --- 4. Graphical output
-# --- 4.1. Set up
-# pal <- mako_pal(6)[2:5]
-# pal <- brewer.pal(4, "Set2")
-pal <- c("red3", "orange2", "antiquewhite4") # wes anderson
+# --- 3.4. Plotting the PCA
+# --- 3.4.1. Extract the axis correlation
+env_cor <- apply(site_metadata, 2, function(var) {cor(var, sites_scores, method = "pearson")})
 
-# --- 4.1. Contribution plot
-par(mar = c(8,3,2,2))
-plot(x = 1:nrow(contribution), y = contribution$contribution_perc %>% rev(),
-     xlab = "", ylab = "PCA Scores rel. to the mean", axes = FALSE, type = "n")
-abline(v = 1:nrow(contribution), lwd = 25, col = c("white","gray95"))
-segments(x0 = 1:nrow(contribution), y0 = 0, y1 = contribution$contribution_perc %>% rev(), lwd = 2)
-axis(side = 2, las = 2)
-axis(side = 1, las = 2, at = 1:nrow(contribution), labels = contribution$MODALITY %>% rev(), cex.axis = 0.6)
-abline(h = seq(-0.4, 0.2, 0.1), lty = c("dashed","dashed","dashed","dashed","solid","dashed","dashed"),
-       col = c("gray","gray","gray","gray","black","gray","gray"))
-points(x = 1:nrow(contribution), y = contribution$contribution_perc %>% rev(),
-       pch = 21, lwd = 2, cex = 3, bg = pal[as.factor(contribution$FACTOR %>% rev())])
-box()
+# --- 3.4.2. Plot cloud of points
+par(mfrow = c(1,1), mar = c(1,5,6,8))
+plot(sites_scores[,1], sites_scores[,2], col = scales::alpha("coral", 0.1), 
+     pch = 16, cex = 1, axes = F, xlab = "", ylab = "")
+abline(h = 0, v = 0, lwd = 1, lty = "dotted")
+# arrows(0,0,1.25,0, lwd = 2, length = 0.1, lty = "dotted")
+# arrows(0,0,0, 2.8, lwd = 2, length = 0.1, lty = "dotted")
 
-# --- 4.2. PCA
-# --- 4.2.1. By data type
-pal <- c("chocolate2", "#CCC591", "darkolivegreen4", "antiquewhite4") # wes anderson
-# pal <- inferno_pal(5)[1:4]
-
-# We first perform the point plot
-par(mar = c(3,3,3,7))
-plot(variable_scores$PC1, variable_scores$PC2, type = "n", axes = FALSE, xlim = c(-0.8, 1.6), ylim = c(-0.8, 1.2), xlab = "", ylab = "")
-points(variable_scores$PC1, variable_scores$PC2,
-     pch = 16, lwd = 1, col = pal[as.factor(variable_scores$DATA_TYPE)] %>% scales::alpha(0.3))
-abline(h = 0, v = 0, lty = "dashed")
-
-mtext("0", side = 1, line = 1, at = 0)
-mtext("0", side = 2, line = 1, at = 0, las = 2)
 mtext(paste("PC1 (", round(PC_percent[1], 2)*100,"% )"), side = 4, line = 1, at = 0, las = 2)
 mtext(paste("PC2 (", round(PC_percent[2], 2)*100,"% )"), side = 3, line = 1, at = 0)
+mtext("Principal Component Analysis \n (Geographical cell f. of Diversity)", side = 3, line = 3, at = 0)
 
-# Add the ellipses
-lapply(1:length(unique(variable_scores$DATA_TYPE)), function(x){
-  df <- variable_scores %>% 
-    dplyr::select(PC1, PC2, DATA_TYPE) %>% 
-    dplyr::filter(DATA_TYPE == unique(variable_scores$DATA_TYPE)[x]) %>% 
-    dplyr::select(-DATA_TYPE) 
-  lines(ellipse(cov(df), centre = colMeans(df)), col = pal[x], lwd = 2)
-}) # end ellipse loop
+# --- 3.4.3. Factor points
+points(variable_centroids$X, variable_centroids$Y, pch = 15)
+text(x = variable_centroids$X, y = variable_centroids$Y, labels = variable_centroids$FACTOR, pos = 2, cex = 0.7)
 
-# --- 4.2.2. By Hill number
-# We skip ellipses here as they are too many
-pal <- rocket_pal(21)
+# --- 3.4.4. Environmental arrows
+lapply(c("PP","Nitrate","Temperature"), function(x){
+  arrows(0,0, SUP$vectors$arrows[x, "PC1"], SUP$vectors$arrows[x, "PC2"], length = 0.1, col = "blue")
+  text(x = SUP$vectors$arrows[x, "PC1"], y = SUP$vectors$arrows[x, "PC2"], labels = x, pos = 2, cex = 0.7)
+}) # end lapply
 
-par(mar = c(3,3,3,7))
-plot(variable_scores$PC1, variable_scores$PC2, type = "n", axes = FALSE, xlim = c(-0.8, 1.6), ylim = c(-0.8, 1.2), xlab = "", ylab = "")
-points(variable_scores$PC1, variable_scores$PC2,
-       pch = 16, lwd = 1, col = pal[as.factor(variable_scores$METHOD)] %>% scales::alpha(0.3))
-abline(h = 0, v = 0, lty = "dashed")
+# --- 4. Map the differences
+par(mfrow = c(2,2), mar = c(0, 1, 2, 4))
 
-mtext("0", side = 1, line = 1, at = 0)
-mtext("0", side = 2, line = 1, at = 0, las = 2)
-mtext(paste("PC1 (", round(PC_percent[1], 2)*100,"% )"), side = 4, line = 1, at = 0, las = 2)
-mtext(paste("PC2 (", round(PC_percent[2], 2)*100,"% )"), side = 3, line = 1, at = 0)
+# --- 4.1. Standard deviation across data types
+# Prepare the data
+sd_dt <- lapply(seq_along(data_list), function(x){
+  out <- apply(data_list[[x]], 1, mean, na.rm = TRUE) # mean across month, bootstrap and hill number
+}) %>% abind(along = 2) %>% apply(1, sd, na.rm = TRUE) # sd across data type
 
-# --- 4.2.3. By Month
-# We skip ellipses here as they are too many
-pal <- circular_pal(12)
-
-par(mar = c(3,3,3,7))
-plot(variable_scores$PC1, variable_scores$PC2, type = "n", axes = FALSE, xlim = c(-0.8, 1.6), ylim = c(-0.8, 1.2), xlab = "", ylab = "")
-points(variable_scores$PC1, variable_scores$PC2,
-       pch = 16, lwd = 1, col = pal[as.factor(variable_scores$MONTH)] %>% scales::alpha(0.3))
-abline(h = 0, v = 0, lty = "dashed")
-
-mtext("0", side = 1, line = 1, at = 0)
-mtext("0", side = 2, line = 1, at = 0, las = 2)
-mtext(paste("PC1 (", round(PC_percent[1], 2)*100,"% )"), side = 4, line = 1, at = 0, las = 2)
-mtext(paste("PC2 (", round(PC_percent[2], 2)*100,"% )"), side = 3, line = 1, at = 0)
-
-# --- 4.3. Principal component spatial pattern
-# --- 4.3.1. Compute site scores and default cell vector
-site_scores <- vegan::scores(PCA, choices = c(1,2), display = "site") %>% as.data.frame()
-colnames(site_scores) <- c("PC1", "PC2")
-val <- rep(NA, 64800)
-
-# --- 4.3.1. Map of PC1
-val[-id] <- site_scores$PC1 # assign values
-r <- setValues(r0, val) %>% terra::project(robinson_proj) # project
-
-plot(r, col = c(inferno_pal(100), "white") %>% rev(), range = c(0,1.5), 
-     axes = FALSE, fill_range = TRUE, main = "PC1") # plot
-plot(land_rob, col = "gray20", add = TRUE, legend = FALSE)
+# Plot
+setValues(r0, sd_dt) %>% terra::project(robinson_proj) %>% plot(col = rocket_pal(100) %>% rev(), range = c(0,50), axes = F, main = "Hotspot probability disagreement \n (SD across data type)")
+setValues(r0, sd_dt) %>% terra::project(robinson_proj) %>% contour( add = TRUE, nlevels = 5)
+plot(land_rob, add = TRUE, legend = FALSE, axes = FALSE, col = "gray20")
 grat <- sf::st_graticule(lon = c(seq(-180,180, 30), -31), lat = c(seq(-90,90, 30), 89)) %>%
   vect() %>%  project(robinson_proj) 
-plot(grat, add = TRUE, lty = "dotted") # add grid
+plot(grat, lty = "dotted", add = TRUE) # add grid
+box("figure", col="black", lwd = 1) # box
 
-# --- 4.3.1. Map of PC2
-val[-id] <- site_scores$PC2 # assign values
-r <- setValues(r0, val) %>% terra::project(robinson_proj) # project
+# --- 4.2. Standard deviation across hill numbers
+# Prepare the data
+tmp <- abind(data_list, along = 2)
+sd_h <- lapply(dimnames(tmp)[[2]] %>% unique(), function(x){
+  id <- which(dimnames(tmp)[[2]] == x)
+  out <- tmp[,id,,] %>% apply(1, mean, na.rm = TRUE) # mean across month, bootstrap and data type
+}) %>% abind(along = 2) %>% apply(1, function(x)(x = mean(x[1:18] - x[4:21], na.rm = TRUE))) # sd across hill numbers
 
-plot(r, col = c(inferno_pal(100), "white") %>% rev(), range = c(0,1.5), 
-     axes = FALSE, fill_range = TRUE, main = "PC2") # plot
-plot(land_rob, col = "gray20", add = TRUE, legend = FALSE)
+# Plot
+setValues(r0, sd_h) %>% terra::project(robinson_proj) %>% plot(col = curl_pal(100) %>% rev(), range = c(-5,5), axes = F, main = "Hotspot probability change \n per unit Hill scaling factor")
+setValues(r0, sd_h) %>% terra::project(robinson_proj) %>% contour( add = TRUE, nlevels = 5)
+plot(land_rob, add = TRUE, legend = FALSE, axes = FALSE, col = "gray20")
 grat <- sf::st_graticule(lon = c(seq(-180,180, 30), -31), lat = c(seq(-90,90, 30), 89)) %>%
   vect() %>%  project(robinson_proj) 
-plot(grat, add = TRUE) # add grid
+plot(grat, lty = "dotted", add = TRUE) # add grid
+box("figure", col="black", lwd = 1) # box
+
+# --- 4.3. Standard deviation across month
+# Prepare the data
+sd_m <- abind(data_list, along = 2) %>% 
+  apply(c(1,4), mean, na.rm = TRUE) %>% # mean across bootstrap, hill number and data type
+  apply(1, function(x)(x = mean(x[1:3]) - mean(x[7:9]))) # sd across month
+
+# Plot
+setValues(r0, sd_m) %>% terra::project(robinson_proj) %>% plot(col = curl_pal(100) %>% rev(), range = c(-50,50), axes = F, main = "Hotspot probability \n (summer - winter)")
+setValues(r0, sd_m) %>% terra::project(robinson_proj) %>% contour(add = TRUE, nlevels = 5)
+plot(land_rob, add = TRUE, legend = FALSE, axes = FALSE, col = "gray20")
+grat <- sf::st_graticule(lon = c(seq(-180,180, 30), -31), lat = c(seq(-90,90, 30), 89)) %>%
+  vect() %>%  project(robinson_proj) 
+plot(grat, lty = "dotted", add = TRUE) # add grid
+box("figure", col="black", lwd = 1) # box
+
+
+
+
+
+# Significancy test
+
+
 
 
 

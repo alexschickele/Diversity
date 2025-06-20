@@ -7,7 +7,8 @@ setwd("/net/meso/work/aschickele/Diversity")
 FOLDER_NAME <- "DIVERSITY_PAPER"
 HILL_NB <- seq(0,5,0.25)
 # CEPHALOPOD_OUTPUT <- "/net/meso/work/aschickele/CEPHALOPOD/output/DIVERSITY_METAGENOMIC_2025-05-16 16:17:58.023044"
-CEPHALOPOD_OUTPUT <- "/net/meso/work/aschickele/CEPHALOPOD/output/DIVERSITY_METAGENOMIC_RAREFIED_2025-06-16 16:33:14.774913"
+# CEPHALOPOD_OUTPUT <- "/net/meso/work/aschickele/CEPHALOPOD/output/DIVERSITY_METAGENOMIC_RAREFIED_2025-06-16 16:33:14.774913"
+CEPHALOPOD_OUTPUT <- "/net/meso/work/aschickele/CEPHALOPOD/output/DIVERSITY_MOTU_RAREFIED_2025-06-17 14:21:26.693524"
 
 # --- 1.3. Source all libraries & functions
 source(file = "./code/00_config.R")

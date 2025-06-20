@@ -30,7 +30,7 @@ colnames(zoo) <- tolower(colnames(zoo))
 zoo_in <- zoo %>%
   .[!grepl("CPR|Recorder|Richardson|270", .$samplingprotocol),] %>% # remove CPR
   dplyr::filter(measurementvalue != 0) %>%  # remove zero
-  dplyr::filter(depth <= 200) %>% 
+  dplyr::filter(depth <= 50) %>% 
   dplyr::filter(year > 1900) %>% 
   dplyr::select(c("scientificname", "worms_id", "decimallatitude", "decimallongitude", 
                   "depth", "year", "month", "measurementvalue", "measurementunit", "taxonrank")) %>% 

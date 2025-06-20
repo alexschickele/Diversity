@@ -24,40 +24,32 @@ samples <- vroom("/net/meso/work/aschickele/Nitromics/data/samples-metadata.tsv"
 # Standardize column names to lowercase with underscores
 names(samples) <- tolower(gsub(" ", "_", names(samples)))
 
-# --- 2.2. Retrieve gene abundance data
-profile <- vroom("/net/meso/work/aschickele/Nitromics/data/gene-catalog-profile-lengthnorm-depthnorm.tsv", skip = 1) %>% 
-  dplyr::select(c(`#reference`, unique(samples$sample)))
-colnames(profile)[1] <- "gene"
+# --- 2.2. Retrieve mOTU abundance data
+# And extract the mOTU reference from taxonomy
+profile <- vroom("/net/meso/work/aschickele/Diversity/data/OMD_v1/motus-profiles.tsv", skip = 2) %>% 
+  dplyr::select(c(`#consensus_taxonomy`, any_of(unique(samples$sample))))
+colnames(profile)[1] <- "consensus_taxonomy"
+profile <- profile %>% 
+  mutate(mOTU_taxonomy = str_trim(str_extract(consensus_taxonomy, "^[^\\[]+")),
+         mOTUs_Species_Cluster = str_extract(consensus_taxonomy, "(?<=\\[)[^\\]]+(?=\\])")) %>% 
+  dplyr::select(-consensus_taxonomy) %>% 
+  dplyr::select(mOTU_taxonomy, mOTUs_Species_Cluster, everything())
+colnames(profile)[2] <- "mOTUs Species Cluster"
 
 # --- 2.3. Rarefy the profiles
 # Get the number of positive samples per location - we chose the threshold accordingly
-sample_size <- apply(profile[, -1], 2, function(x)(x = length(x[x > 0]))) %>% min()
+# sample_size <- apply(profile[, -1], 2, function(x)(x = length(x[x > 0]))) %>% min()
+sample_size <- 1000
 
 # Sample of equal sample sizes
 id <- sample(1:nrow(profile), size = sample_size)
 profile <- profile[id, ]
 
-# --- 2.3. Retrieve gene annotation and get genome correspondence
-annotations <- vroom("/net/meso/work/aschickele/Nitromics/data/genomes-kegg.tsv") %>% 
-  dplyr::select(genome, gene) %>%
-  collect()
-
-# --- 2.4. Group genes by genome x sample
-# We need to shorten the profile table, so lets have a genome profile instead
-# /!\ use DATA.TABLE for huge datasets
-library(data.table)
-merged <- merge(as.data.table(annotations), as.data.table(profile), by = "gene", allow.cartesian = TRUE)
-
-# Aggregate by genome
-genome_profile <- merged[, lapply(.SD, sum, na.rm = TRUE), by = genome, .SDcols = is.numeric]
-rm(profile, merged)
-gc()
-
 # --- 2.5. Reshape to long format
 # And remove zero's
-data <- genome_profile %>% 
+data <- profile %>% 
   as.data.frame() %>% 
-  pivot_longer(cols = 2:ncol(.),  # Transform wide table to long format
+  pivot_longer(cols = 3:ncol(.),  # Transform wide table to long format
                names_to = "sample",
                values_to = "reads") %>% 
   dplyr::filter(reads > 0)
@@ -68,7 +60,7 @@ data <- inner_join(samples, data)
 # --- 2.4. Extract taxonomy
 # --- 2.4.1. Base table
 taxonomy <- vroom("/net/meso/work/aschickele/Nitromics/data/genomes-summary.csv") %>% 
-  dplyr::select(Genome, `GTDB Taxonomy`) %>%
+  dplyr::select(`mOTUs Species Cluster`, `GTDB Taxonomy`) %>%
   collect()
 
 # --- 2.4.2. Function to split a taxonomic annotation into separate columns, handling NA values
@@ -96,8 +88,8 @@ split_taxonomy <- function(taxon) {
 
 # --- 2.4.3. Apply the function to the dataset
 taxonomy_matrix <- t(apply(taxonomy[,2], 1, split_taxonomy))
-taxonomy <- cbind(taxonomy, taxonomy_matrix) %>% dplyr::select(Genome, Species)
-colnames(taxonomy) <- tolower(colnames(taxonomy))
+taxonomy <- cbind(taxonomy, taxonomy_matrix) %>% dplyr::select(`mOTUs Species Cluster`, Species) %>% 
+  distinct()
 
 # --- 2.4.4. Join
 data <- inner_join(data, taxonomy)
@@ -114,6 +106,9 @@ data <- data %>%
 
 rm(annotations, profile, samples)
 gc()
+
+# --- 2.6. Fix colnames
+colnames(data) <- tolower(colnames(data))
 
 # --- 3. Match CEPHALOPOD input requirements
 # --- 3.1. Extract the input table

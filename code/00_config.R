@@ -15,6 +15,7 @@ if(!require("terra")){install.packages("raster")}
 if(!require("virtualspecies")){install.packages("virtualspecies")}
 if(!require("sf")){install.packages("sf")}
 if(!require("rnaturalearth")){install.packages("rnaturalearth")}
+if(!require("ncdf4")){install.packages("ncdf4")}
 
 # --- 2.4. Diversity
 if(!require("hillR")){install.packages("hillR")}
@@ -36,6 +37,7 @@ source("./function/viridis.R")
 source("./function/get_cell_neighbors.R")
 source("./function/memory_cleanup.R")
 source("./function/r_to_hatched_polygon.R")
+source("./function/moving_window_anova.R")
 
 # --- Model specific parameters
 MAX_CLUSTERS <- 10

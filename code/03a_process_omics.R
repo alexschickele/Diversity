@@ -30,7 +30,7 @@ ensemble_files <- mclapply(model_files, function(x){
   } # if model list
 }, mc.cores = MAX_CLUSTERS) %>% .[lengths(.) != 0]
 
- # --- 2.2. Loop over the files
+ # --- 2.2. Extract ensemble projections and VIP
  message(paste0(Sys.time(), "--- METAGENOMICS: build the ensembles - loop over files"))
  tmp <- mclapply(ensemble_files, function(x){
   memory_cleanup() # low memory use
@@ -48,24 +48,46 @@ ensemble_files <- mclapply(model_files, function(x){
   } else {
     m <- MODEL[[x$MODEL_LIST]][["proj"]]$y_hat
   } # end if
+  
+  # --- 2.2.3. Extract VIP
+  # If there is more than 1 algorithm, we extract from the computed ensemble
+  # Else we extract from the algorithm element
+  if(length(x$MODEL_LIST) > 1){
+    vip <- MODEL$ENSEMBLE$vip
+  } else {
+    vip <- MODEL[[x$MODEL_LIST]][["vip"]]
+  } # end if
+  
+  # --- 2.2.4. Return
+  return(list(m = m, vip = vip))
 }, mc.cores = MAX_CLUSTERS, mc.cleanup = TRUE)
 
 # --- 2.3. Stack in a cell x species x bootstrap x month matrix
-# --- 2.3.1. Re-arrange the array
+# --- 2.3.1. Re-arrange the projection array
 message(paste0(Sys.time(), "--- METAGENOMICS: build the ensembles - format to array"))
-data <- tmp %>% 
+data <- lapply(tmp, function(x)(x = x[[1]])) %>% 
   abind(along = 4) %>% 
   aperm(c(1,4,2,3))
+
 # --- 2.3.2. Pretty dimensions
 dimnames(data)[[2]] <- lapply(ensemble_files, function(x){out <- x$SUBFOLDER_NAME}) %>% unlist() %>% as.character()
 dimnames(data)[[4]] <- 1:12 %>% as.character()
 
-# --- 2.4. Memory cleanup
+# --- 2.4. Stack the VIP
+vip <- lapply(tmp, function(x)(x = x[[2]])) %>% 
+  bind_rows() %>% 
+  group_by(variable) %>% 
+  summarize(value = mean(value)) %>% 
+  ungroup() %>% 
+  mutate(value = value / sum(value))
+
+# --- 2.5. Memory cleanup
 rm(tmp)
 gc() # clean garbage and temporary files
 message(paste0(Sys.time(), "--- METAGENOMICS: build the ensembles - DONE"))
 
 # --- 3. Save
+save(vip, file = paste0("./output/", FOLDER_NAME, "/METAGENOMICS_vip.RData"))
 save(data, file = paste0("./output/", FOLDER_NAME, "/METAGENOMICS_raw_diversity.RData"))
 message(paste0(Sys.time(), "--- METAGENOMICS: build the ensembles - DONE"))
 

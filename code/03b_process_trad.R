@@ -46,14 +46,27 @@ tmp <- mclapply(ensemble_files, function(x){
   } else {
     m <- MODEL[[x$MODEL_LIST]][["proj"]]$y_hat
   } # end if
+  
+  # --- 2.2.3. Extract VIP
+  # If there is more than 1 algorithm, we extract from the computed ensemble
+  # Else we extract from the algorithm element
+  if(length(x$MODEL_LIST) > 1){
+    vip <- MODEL$ENSEMBLE$vip
+  } else {
+    vip <- MODEL[[x$MODEL_LIST]][["vip"]]
+  } # end if
+  
+  # --- 2.2.4. Return
+  return(list(m = m, vip = vip))
 }, mc.cores = MAX_CLUSTERS, mc.cleanup = TRUE)
 
 # --- 2.3. Stack in a cell x species x bootstrap x month matrix
 # --- 2.3.1. Re-arrange the array
 message(paste0(Sys.time(), "--- TRADITIONNAL: build the ensembles - format to array"))
-data <- tmp %>% 
+data <- lapply(tmp, function(x)(x = x[[1]])) %>% 
   abind(along = 4) %>% 
   aperm(c(1,4,2,3))
+
 # --- 2.3.2. Pretty dimensions
 dimnames(data)[[2]] <- lapply(ensemble_files, function(x){out <- x$SUBFOLDER_NAME}) %>% unlist() %>% as.character()
 dimnames(data)[[4]] <- 1:12 %>% as.character()
@@ -63,12 +76,30 @@ id <- grep("ind", dimnames(data)[[2]])
 data_abundance <- data[,id,,]
 data_biomass <- data[,-id,,]
 
-# --- 2.4. Memory cleanup
+# --- 2.4. Stack the VIP
+# Split abundance and biomass
+vip_abundance <- lapply(tmp[id], function(x)(x = x[[2]])) %>% 
+  bind_rows() %>% 
+  group_by(variable) %>% 
+  summarize(value = mean(value)) %>% 
+  ungroup() %>% 
+  mutate(value = value / sum(value))
+
+vip_biomass <- lapply(tmp[-id], function(x)(x = x[[2]])) %>% 
+  bind_rows() %>% 
+  group_by(variable) %>% 
+  summarize(value = mean(value)) %>% 
+  ungroup() %>% 
+  mutate(value = value / sum(value))
+
+# --- 2.5. Memory cleanup
 rm(tmp, data)
 gc() # clean garbage and temporary files
 message(paste0(Sys.time(), "--- TRADITIONAL: build the ensembles - DONE"))
 
 # --- 3. Save
+save(vip_abundance, file = paste0("./output/", FOLDER_NAME, "/TRADITIONAL_ABUNDANCE_vip.RData"))
+save(vip_biomass, file = paste0("./output/", FOLDER_NAME, "/TRADITIONAL_BIOMASS_vip.RData"))
 save(data_abundance, file = paste0("./output/", FOLDER_NAME, "/TRADITIONAL_ABUNDANCE_raw_diversity.RData"))
 save(data_biomass, file = paste0("./output/", FOLDER_NAME, "/TRADITIONAL_BIOMASS_raw_diversity.RData"))
 message(paste0(Sys.time(), "--- TRADITIONAL: save the ensembles - DONE"))

@@ -11,7 +11,7 @@ HILL_NB <- seq(0,5,0.25)
 source(file = "./code/00_config.R")
 
 # --- 1.4. List files
-ATLANTECO_filenames <- list.files("/nfs/kryo/work/public/shared/AtlantECO/BASE", full.names = TRUE) %>% 
+ATLANTECO_filenames <- list.files("/nfs/kryo/work/public/shared/AtlantECO/BASE/v1_legacy/", full.names = TRUE) %>% 
   .[grepl("biomass_", .)] %>% 
   .[grepl("_traditional_", .)] %>% 
   .[grepl(".csv", .)]
@@ -40,7 +40,7 @@ ATLANTECO_all_aggr <- mclapply(1:nrow(PARAMETER_TBL), function(x){
   ATLANTECO_file <- vroom(ATLANTECO_filenames[PARAMETER_TBL$PFG[x]])
   colnames(ATLANTECO_file) <- tolower(colnames(ATLANTECO_file)) # harmonize to lower
   
-  if(ATLANTECO_filenames[PARAMETER_TBL$PFG[x]] == "/nfs/kryo/work/public/shared/AtlantECO/BASE/AtlantECO-BASE-v1_microbiome_traditional_Euphausiacea_abund+biomass_20221220.csv"){
+  if(ATLANTECO_filenames[PARAMETER_TBL$PFG[x]] == "/nfs/kryo/work/public/shared/AtlantECO/BASE/v1_legagy/AtlantECO-BASE-v1_microbiome_traditional_Euphausiacea_abund+biomass_20221220.csv"){
     # Repair euphausid data set
     # EcoMon and SSRF cruises present systematic abundance outliers. We remove the cruises. 
     # cf the reference cruise papaer, the abundance were given in ind/X m3 where X is the total water filter by the net, not ind/m3
@@ -62,8 +62,8 @@ ATLANTECO_all_aggr <- mclapply(1:nrow(PARAMETER_TBL), function(x){
     dplyr::filter(year > 1950)
   
   # --- 2.4. Get column names to select + select + rename
-  names_qc <- list(names_abundance <- c("scientificname","worms_id","decimallatitude","decimallongitude","depth","year","month","measurementvalue","measurementunit", "species"),
-                   names_biomass <- c("scientificname","worms_id","decimallatitude","decimallongitude","depth","year","month","meanbiomass","biomass_mgcm3","biomassunit","species"))
+  names_qc <- list(names_abundance <- c("scientificname","worms_id","decimallatitude","decimallongitude","depth","year","month","measurementvalue","measurementunit", "species","class"),
+                   names_biomass <- c("scientificname","worms_id","decimallatitude","decimallongitude","depth","year","month","meanbiomass","biomass_mgcm3","biomassunit","species","class"))
   
   ATLANTECO_df <- ATLANTECO_file %>% 
     dplyr::select(any_of(names_qc[[PARAMETER_TBL$DATA_SOURCE[x]]])) 
@@ -117,7 +117,7 @@ ATLANTECO_all_aggr <- mclapply(1:nrow(PARAMETER_TBL), function(x){
   
   # --- 2.9. Aggregate at the species level
   ATLANTECO_aggr <- ATLANTECO_taxa_avg %>% 
-    dplyr::group_by(decimallatitude, decimallongitude, month, measurementunit, species) %>% 
+    dplyr::group_by(decimallatitude, decimallongitude, month, measurementunit, species, class) %>% 
     summarize(measurementvalue = sum(measurementvalue, na.rm = TRUE), 
               depth = mean(depth),
               year = mean(year)) %>% 
@@ -135,6 +135,48 @@ ATLANTECO_all_aggr <- ATLANTECO_all_aggr %>%
 
 message(paste(Sys.time(), "--- Aggregate at the class level - DONE"))
 message(">>> Starting to process the diversity")
+
+# --- 3. Get top taxa worldwide
+# --- 3.1. Define sample_id and build contingency table
+sample_taxa <- ATLANTECO_all_aggr %>% 
+  dplyr::group_by(decimallongitude, decimallatitude, month, measurementunit) %>% 
+  mutate(site_id = cur_group_id()) %>% 
+  ungroup() %>% 
+  group_by(site_id, measurementunit, class) %>% 
+  mutate(n_species = n_distinct(species), .groups = "drop") %>% 
+  dplyr::select(site_id, measurementunit, class, measurementvalue, n_species)
+
+contingency_taxa <- expand_grid(sample_taxa$site_id %>% unique(),
+                                ATLANTECO_all_aggr$class %>% unique(),
+                                ATLANTECO_all_aggr$measurementunit %>% unique())
+colnames(contingency_taxa) <- c("site_id","class","measurementunit")
+
+all_taxa <- contingency_taxa %>% left_join(sample_taxa)
+# We count abscence as a 0 here, as it would be done in the diversity estimate
+# This is to have a more representative contribution of each taxa class to our diversity estimates
+all_taxa$measurementvalue[is.na(all_taxa$measurementvalue)] <- 0
+
+# --- 3.2. For abundance
+abundance_taxa_comp <- all_taxa %>% 
+  dplyr::filter(measurementunit == "ind m-3") %>% 
+  group_by(site_id, class) %>% 
+  summarise(measurementvalue0 = sum(measurementvalue), n_species = mean(n_species, na.rm = T)) %>% # sum all species by class
+  group_by(class) %>% 
+  summarise(measurementvalue = mean(measurementvalue0), n = sum(measurementvalue0 != 0), n_species = mean(n_species, na.rm = T)) %>% # mean across class samples
+  ungroup()
+
+write.csv(abundance_taxa_comp, file = paste0("/nfs/meso/work/aschickele/Diversity/output/",FOLDER_NAME,"/TRADITIONAL_ABUNDANCE_taxo.csv"), row.names = F)
+
+# --- 3.2. For biomass
+biomass_taxa_comp <- all_taxa %>% 
+  dplyr::filter(measurementunit == "mgC m-3") %>% 
+  group_by(site_id, class) %>% 
+  summarise(measurementvalue0 = sum(measurementvalue), n_species = mean(n_species, na.rm = T)) %>% # sum all species by class
+  group_by(class) %>% 
+  summarise(measurementvalue = mean(measurementvalue0), n = sum(measurementvalue0 != 0), n_species = mean(n_species, na.rm = T)) %>% # mean across class samples
+  ungroup()
+
+write.csv(biomass_taxa_comp, file = paste0("/nfs/meso/work/aschickele/Diversity/output/",FOLDER_NAME,"/TRADITIONAL_BIOMASS_taxo.csv"), row.names = F)
 
 # --- 3. Compute diversity indices
 # Loop over hill numbers

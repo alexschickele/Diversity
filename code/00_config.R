@@ -16,6 +16,7 @@ if(!require("virtualspecies")){install.packages("virtualspecies")}
 if(!require("sf")){install.packages("sf")}
 if(!require("rnaturalearth")){install.packages("rnaturalearth")}
 if(!require("ncdf4")){install.packages("ncdf4")}
+if(!require("akima")){install.packages("akima")}
 
 # --- 2.4. Diversity
 if(!require("hillR")){install.packages("hillR")}

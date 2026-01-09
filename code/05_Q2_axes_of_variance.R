@@ -13,7 +13,7 @@ source(file = "./code/00_config.R")
 r0 <- terra::rast(nrows = 180, ncols = 360, xmin = -180, xmax = 180, ymin = -90, ymax = 90)
 
 # --- 1.5. Robinson projection
-robinson_proj <- "+proj=robin +lon_0=150 +datum=WGS84"
+robinson_proj <- "+proj=robin +lon_0=210 +datum=WGS84"
 
 # --- 1.6. Project land mask
 land <- ne_countries(scale = 50, returnclass = "sf") %>% .[,1]
@@ -136,6 +136,23 @@ site_metadata <- r_point[-id, -1]
 
 rm(r1, r2, r3, r, r_point)
 gc()
+
+# --- 3. PCA on drivers x axis of variance
+# --- 3.1. Cluster environmental variables
+# At the global scale to ease interpretation on the maps
+load("/net/meso/work/aschickele/CEPHALOPOD/output/DIVERSITY_MOTU_RAREFIED_2025-06-17 14:21:26.693524/CALL.RData") # load omic' CALL
+features <- CALL$ENV_DATA
+
+# --- 3.1.1 Reshape as array cell * layer * month
+features_array <- lapply(1:12, function(x)(x = features[[x]] %>% unwrap() %>% as.matrix())) %>% abind(along = 3)
+dimnames(features_array) <- list(NULL, names(features[[1]] %>% unwrap()), as.character(1:12))
+
+# --- 3.1.2. Yearly average
+features_array_year <- apply(features_array, c(1,2), mean, na.rm = T)
+
+# --- 3.1.3. Do the PCA
+PCA <- vegan::rda(X = features_array_year[-id,], Y = val_dt[-id,], scale = T)
+
 
 # --- 3. PCA on diversity estimates
 # --- 3.1. Perform PCA // Species = diversity ; sites = geographical cells
@@ -268,7 +285,7 @@ setValues(r0, val_dt) %>% terra::project(robinson_proj) %>% plot(col = rocket_pa
 setValues(r0, val_dt) %>% terra::project(robinson_proj) %>% contour( add = TRUE, nlevels = 5)
 points(signif_dt, pch = 16, col = scales::alpha("black", 0.5), cex = 0.5) # significancy test
 plot(land_rob, add = TRUE, legend = FALSE, axes = FALSE, col = "gray20") # land
-grat <- sf::st_graticule(lon = c(seq(-180,180, 30), -31), lat = c(seq(-90,90, 30), 89)) %>%
+grat <- sf::st_graticule(lon = c(seq(-180,180, 30), 29), lat = c(seq(-90,90, 30), 89)) %>%
   vect() %>%  project(robinson_proj) 
 plot(grat, lty = "dotted", add = TRUE) # add grid
 box("figure", col="black", lwd = 1) # box
@@ -290,11 +307,11 @@ signif_h <- moving_window_anova(A = arr_h, R = 3, THRESHOLD = 0.05) %>%
   st_as_sf(., coords = c(1,2), crs = 4326) %>% st_transform(., crs = robinson_proj)
 
 # Plot
-setValues(r0, val_h) %>% terra::project(robinson_proj) %>% plot(col = curl_pal(100) %>% rev(), range = c(-5,5), axes = F, main = "Hotspot probability change \n per unit Hill scaling factor")
+setValues(r0, val_h) %>% terra::project(robinson_proj) %>% plot(col = curl_pal(100) %>% rev(), range = c(-5,5), axes = F, fill_range = T, main = "Hotspot probability change \n per unit Hill scaling factor")
 setValues(r0, val_h) %>% terra::project(robinson_proj) %>% contour( add = TRUE, nlevels = 5)
 points(signif_h, pch = 16, col = scales::alpha("black", 0.5), cex = 0.5) # significancy test
 plot(land_rob, add = TRUE, legend = FALSE, axes = FALSE, col = "gray20") # land
-grat <- sf::st_graticule(lon = c(seq(-180,180, 30), -31), lat = c(seq(-90,90, 30), 89)) %>%
+grat <- sf::st_graticule(lon = c(seq(-180,180, 30), 29), lat = c(seq(-90,90, 30), 89)) %>%
   vect() %>%  project(robinson_proj) 
 plot(grat, lty = "dotted", add = TRUE) # add grid
 box("figure", col="black", lwd = 1) # box
@@ -313,11 +330,11 @@ signif_m <- moving_window_anova(A = arr_m, R = 3, THRESHOLD = 0.05) %>%
   st_as_sf(., coords = c(1,2), crs = 4326) %>% st_transform(., crs = robinson_proj)
 
 # Plot
-setValues(r0, val_m) %>% terra::project(robinson_proj) %>% plot(col = curl_pal(100) %>% rev(), range = c(-50,50), axes = F, main = "Hotspot probability \n (summer - winter)")
+setValues(r0, val_m) %>% terra::project(robinson_proj) %>% plot(col = curl_pal(100) %>% rev(), range = c(-50,50), fill_range = T, axes = F, main = "Hotspot probability \n (summer - winter)")
 setValues(r0, val_m) %>% terra::project(robinson_proj) %>% contour(add = TRUE, nlevels = 5)
 points(signif_m, pch = 16, col = scales::alpha("black", 0.5), cex = 0.5) # significancy test
 plot(land_rob, add = TRUE, legend = FALSE, axes = FALSE, col = "gray20") # land
-grat <- sf::st_graticule(lon = c(seq(-180,180, 30), -31), lat = c(seq(-90,90, 30), 89)) %>%
+grat <- sf::st_graticule(lon = c(seq(-180,180, 30), 29), lat = c(seq(-90,90, 30), 89)) %>%
   vect() %>%  project(robinson_proj) 
 plot(grat, lty = "dotted", add = TRUE) # add grid
 box("figure", col="black", lwd = 1) # box
@@ -333,11 +350,11 @@ arr_dt <- lapply(seq_along(data_list), function(x){
 }) %>% abind(along = 2) %>%  array(., dim = c(360, 180, 4)) # array for ANOVA
 
 # --- Plot
-pal <- brewer.pal(4, "BrBG")
+pal <- c("skyblue","antiquewhite","antiquewhite3","chocolate") %>% rev()
 plot(1, 1, type = 'n', xlim = c(20, 80), ylim = c(-90, 90), xlab = "Hotspot probability", ylab = "Latitude", axes = FALSE)
 lapply(1:dim(arr_dt)[[3]], function(x){
   val <- arr_dt[,,x] %>% apply(c(2), mean, na.rm = TRUE)
-  lines(x = moving_average(x = val, n = 10) %>% as.numeric(), y = 89.5:-89.5, col = pal[x], lwd = 2)
+  lines(x = moving_average(x = val, n = 10) %>% as.numeric(), y = 89.5:-89.5, col = pal[x], lwd = 3)
 }) # end lapply
 abline(h = c(60, 30, 0, -30, -60), lty = "dotted")
 axis(side = 1)
@@ -357,7 +374,7 @@ pal <- rocket_pal(21)
 plot(1, 1, type = 'n', xlim = c(20, 80), ylim = c(-90, 90), xlab = "Hotspot probability", ylab = "Latitude", axes = FALSE)
 lapply(1:dim(arr_h)[[3]], function(x){
   val <- arr_h[,,x] %>% apply(c(2), mean, na.rm = TRUE)
-  lines(x = moving_average(x = val, n = 10) %>% as.numeric(), y = 89.5:-89.5, col = pal[x], lwd = 1)
+  lines(x = moving_average(x = val, n = 10) %>% as.numeric(), y = 89.5:-89.5, col = pal[x], lwd = 2)
 }) # end lapply
 abline(h = c(60, 30, 0, -30, -60), lty = "dotted")
 axis(side = 1)
@@ -374,7 +391,7 @@ pal <- circular_pal(12)
 plot(1, 1, type = 'n', xlim = c(20, 80), ylim = c(-90, 90), xlab = "Hotspot probability", ylab = "Latitude", axes = FALSE)
 lapply(1:dim(arr_m)[[3]], function(x){
   val <- arr_m[,,x] %>% apply(c(2), mean, na.rm = TRUE)
-  lines(x = moving_average(x = val, n = 10) %>% as.numeric(), y = 89.5:-89.5, col = pal[x], lwd = 1)
+  lines(x = moving_average(x = val, n = 10) %>% as.numeric(), y = 89.5:-89.5, col = pal[x], lwd = 2)
 }) # end lapply
 abline(h = c(60, 30, 0, -30, -60), lty = "dotted")
 axis(side = 1)
@@ -390,7 +407,7 @@ val_sd <- abind(data_list, along = 2) %>% apply(c(1,2,4), sd, na.rm = TRUE) %>% 
 setValues(r0, val_sd) %>% terra::project(robinson_proj) %>% plot(col = rocket_pal(100) %>% rev(), range = c(0,20), axes = F, main = "Global uncertainty \n (SD across all bootstraps)")
 setValues(r0, val_sd) %>% terra::project(robinson_proj) %>% contour(add = TRUE, nlevels = 5)
 plot(land_rob, add = TRUE, legend = FALSE, axes = FALSE, col = "gray20") # land
-grat <- sf::st_graticule(lon = c(seq(-180,180, 30), -31), lat = c(seq(-90,90, 30), 89)) %>%
+grat <- sf::st_graticule(lon = c(seq(-180,180, 30), 29), lat = c(seq(-90,90, 30), 89)) %>%
   vect() %>%  project(robinson_proj) 
 plot(grat, lty = "dotted", add = TRUE) # add grid
 box("figure", col="black", lwd = 1) # box

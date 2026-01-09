@@ -38,7 +38,7 @@ colnames(profile)[2] <- "mOTUs Species Cluster"
 
 # --- 2.3. Rarefy the profiles
 # Get the number of positive samples per location - we chose the threshold accordingly
-# sample_size <- apply(profile[, -1], 2, function(x)(x = length(x[x > 0]))) %>% min()
+sample_size <- apply(profile[, -c(1:2)], 2, function(x)(x = length(x[x > 0]))) %>% quantile(seq(0,1,0.01))
 sample_size <- 1000
 
 # Sample of equal sample sizes
@@ -88,7 +88,7 @@ split_taxonomy <- function(taxon) {
 
 # --- 2.4.3. Apply the function to the dataset
 taxonomy_matrix <- t(apply(taxonomy[,2], 1, split_taxonomy))
-taxonomy <- cbind(taxonomy, taxonomy_matrix) %>% dplyr::select(`mOTUs Species Cluster`, Species) %>% 
+taxonomy <- cbind(taxonomy, taxonomy_matrix) %>% dplyr::select(`mOTUs Species Cluster`, Species, Class) %>% 
   distinct()
 
 # --- 2.4.4. Join
@@ -109,6 +109,16 @@ gc()
 
 # --- 2.6. Fix colnames
 colnames(data) <- tolower(colnames(data))
+
+# --- 3. Get top taxa worldwide
+omic_taxa_comp <- data %>% 
+  group_by(station, class) %>% 
+  summarize(reads = sum(reads)) %>% 
+  group_by(class) %>% 
+  summarise(reads = median(reads), n = n()) %>% 
+  ungroup()
+
+write.csv(omic_taxa_comp, file = paste0("/nfs/meso/work/aschickele/Diversity/output/",FOLDER_NAME,"/METAGENOMIC_taxo.csv"), row.names = F)
 
 # --- 3. Match CEPHALOPOD input requirements
 # --- 3.1. Extract the input table

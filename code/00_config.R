@@ -1,4 +1,15 @@
 # --- 1. System arguments
+# Have to load it this way otherwise crash tidy terra shit
+library(ggplot2)
+library(tidyr)
+library(readr)
+library(purrr)
+library(tibble)
+library(stringr)
+library(forcats)
+library(dplyr)
+library(terra)
+
 
 # --- 2. R Packages
 # --- 2.1. General use
@@ -7,11 +18,11 @@ if(!require("abind")){install.packages("abind")}
 if(!require("vroom")){install.packages("vroom")}
 
 # --- 2.2. Tidy environment-related
-if(!require("tidyverse")){install.packages("tidyverse")}
+# if(!require("tidyverse")){install.packages("tidyverse")}
 if(!require("parallel")){install.packages("parallel")}
 
 # --- 2.3. Spatial data and object
-if(!require("terra")){install.packages("raster")}
+# if(!require("terra")){install.packages("raster")}
 if(!require("virtualspecies")){install.packages("virtualspecies")}
 if(!require("sf")){install.packages("sf")}
 if(!require("rnaturalearth")){install.packages("rnaturalearth")}

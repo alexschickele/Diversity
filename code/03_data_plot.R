@@ -59,11 +59,12 @@ all_data <- bind_rows(occ_data, trad_data, omic_data) %>%
 # --- 3.1. Process samples as spatial points
 samples_sf <- sf::st_as_sf(all_data, coords = c("decimallongitude", "decimallatitude"), crs = 4326)
 samples_proj <- sf::st_transform(samples_sf, crs = robinson_proj)
-type_colors <- scales::alpha(c("Presence" = "skyblue1", "ind m-3" = "antiquewhite2", "mgC m-3" = "antiquewhite2", "relative metagenomic reads" = "chocolate1"), c(0.1, 0.05, 0.05, 0.8))
+type_colors <- scales::alpha(c("ind m-3" = "#287E8C", "mgC m-3" = "#9FD744", "Presence" = "#413078", "relative metagenomic reads" = "chocolate1"), c(0.05, 0.05, 0.2, 1))
+type_cex <- c("ind m-3" = 0.3, "mgC m-3" = 0.3, "Presence" = 0.6, "relative metagenomic reads" = 1)
 
 # --- 3.2. Do the plot
 plot(land_rob, col = "gray20", box = FALSE, axes = FALSE)
-points(sf::st_coordinates(samples_proj), col = type_colors[all_data$measurementunit], pch = 20, cex = 0.5) # add points
+points(sf::st_coordinates(samples_proj), col = type_colors[all_data$measurementunit], pch = 15, cex = type_cex[all_data$measurementunit]) # add points
 plot(land_rob, col = "gray20", box = FALSE, axes = FALSE, add = TRUE)
 grat <- sf::st_graticule(lon = c(seq(-180,180, 30), 29), lat = c(seq(-90,90, 30), 89)) %>%
   vect() %>%  project(robinson_proj) 
@@ -86,7 +87,7 @@ tmp <- all_data %>%
          latid = as.numeric(latbin)) 
 
 boxplot(tmp$measurementvalue ~ tmp$latid, horizontal = T, axes = FALSE, 
-        col = scales::alpha("skyblue1", 0.5), outline = F)
+        col = scales::alpha("#413078", 0.5), outline = F)
 axis(side = 1, at = seq(0, 100, 20), labels = seq(0, 100, 20), cex.axis = 0.7)
 axis(side = 2, at = 0.5:18.5, labels = seq(-90, 90, 10), las = 2, cex.axis = 0.7)
 box()
@@ -103,7 +104,7 @@ tmp <- all_data %>%
          latid = as.numeric(latbin)) 
 
 boxplot(tmp$measurementvalue ~ tmp$latid, horizontal = T, axes = FALSE, 
-        col = scales::alpha("antiquewhite2", 0.5), outline = F)
+        col = scales::alpha("#287E8C", 0.5), outline = F)
 axis(side = 1, at = seq(0, 100, 20), labels = seq(0, 100, 20), cex.axis = 0.7)
 axis(side = 2, at = 0.5:18.5, labels = seq(-90, 90, 10), las = 2, cex.axis = 0.7)
 box()
@@ -120,7 +121,7 @@ tmp <- all_data %>%
          latid = as.numeric(latbin)) 
 
 boxplot(tmp$measurementvalue ~ tmp$latid, horizontal = T, axes = FALSE, 
-        col = scales::alpha("antiquewhite4", 0.5), outline = F)
+        col = scales::alpha("#9FD744", 0.5), outline = F)
 axis(side = 1, at = seq(0, 100, 20), labels = seq(0, 100, 20), cex.axis = 0.7)
 axis(side = 2, at = 0.5:18.5, labels = seq(-90, 90, 10), las = 2, cex.axis = 0.7)
 box()

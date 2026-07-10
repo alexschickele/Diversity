@@ -300,7 +300,7 @@ val_h <- lapply(dimnames(tmp)[[2]] %>% unique(), function(x){
 
 arr_h <- val_h %>% apply(1, function(x)(x = c(mean(x[1:18], na.rm = TRUE), mean(x[4:21], na.rm = TRUE)))) %>% 
   t() %>% array(., dim = c(360, 180, 2)) # array for ANOVA
-val_h <- val_h %>% apply(1, function(x)(x = mean(x[1:18] - x[4:21], na.rm = TRUE))) # sd across hill numbers
+val_h <- val_h %>% apply(1, function(x)(x = mean(x[1:18] - x[4:21], na.rm = TRUE))) # diff across hill numbers
 
 # Significancy test
 signif_h <- moving_window_anova(A = arr_h, R = 3, THRESHOLD = 0.05) %>% 
@@ -315,6 +315,44 @@ grat <- sf::st_graticule(lon = c(seq(-180,180, 30), 29), lat = c(seq(-90,90, 30)
   vect() %>%  project(robinson_proj) 
 plot(grat, lty = "dotted", add = TRUE) # add grid
 box("figure", col="black", lwd = 1) # box
+
+# --- 4.2.1. Supplementary overlap between hill, PP and fsle
+# Showing that diversity increase with lower hill overlaps with intermediate PP and high fsle
+
+par(mfrow = c(2,2))
+
+lapply(seq_along(data_list), function(dt){
+  
+  # --- Biological variable
+  val_h_subset <- data_list[[dt]] %>% apply(c(1,2), mean, na.rm = TRUE) # mean across month, bootstrap and data type
+  val_h_subset <- val_h_subset %>% apply(1, function(x)(x = mean(x[1:17] - x[4:20], na.rm = TRUE))) # diff across hill numbers
+  
+  # --- Environmental variable
+  env_val <- features_array_year[,c("climatology_S_PP_regridded","climatology_fsle_aviso_2001_2020")] # extract environmental values for biplot
+  env_val[,2] <- env_val[,2]*(-1) # reverse FLSE
+  env1_true_val <- quantile(env_val[,1], seq(0,1,0.2), na.rm = TRUE) %>% signif(., 2) # for plot axis
+  env2_true_val <- quantile(env_val[,2], seq(0,1,0.2), na.rm = TRUE) %>% signif(., 2) # for plot axis
+  env_val <- apply(env_val, 2, function(x)(x = quantile_scale(x))) %>% as.data.frame() # scale to quantiles
+  
+  # --- Merge into a df
+  df <- data.frame(env_val, val_h_subset)
+  df <- df[is.finite(rowSums(df)), ]
+  colnames(df) <- c("env1","env2","hill_diff")
+  
+  df <- df %>% group_by(env1, env2) %>% summarise(hill_diff = mean(hill_diff)) %>% ungroup() # average bio per env bin
+  
+  # --- Define raster for plotting
+  r_env <- terra::rast(nrows = 100, ncols = 100, xmin = 0, xmax = 100, ymin = 0, ymax = 100)
+  c <- cellFromXY(r_env, as.matrix(df[,1:2]))
+  r_env[c] <- df[,3]
+  r_env <- terra::aggregate(r_env, fact = 2, mean)
+  
+  # --- Plot
+  plot(r_env, col = curl_pal(100) %>% rev(), range = c(-5,5), axes = F, fill_range = T, main = names(data_list)[dt])
+  abline(h = seq(0,100,20), v = seq(0,100,20), lty = "dotted")
+  abline(h = c(0,100), v = c(0,100))
+  
+}) # end data type loop
 
 # --- 4.3. Standard deviation across month
 # Prepare the data
@@ -350,7 +388,7 @@ arr_dt <- lapply(seq_along(data_list), function(x){
 }) %>% abind(along = 2) %>%  array(., dim = c(360, 180, 4)) # array for ANOVA
 
 # --- Plot
-pal <- c("skyblue","antiquewhite","antiquewhite3","chocolate") %>% rev()
+pal <- c("#413078","#287E8C","#9FD744","chocolate") %>% rev()
 plot(1, 1, type = 'n', xlim = c(20, 80), ylim = c(-90, 90), xlab = "Hotspot probability", ylab = "Latitude", axes = FALSE)
 lapply(1:dim(arr_dt)[[3]], function(x){
   val <- arr_dt[,,x] %>% apply(c(2), mean, na.rm = TRUE)

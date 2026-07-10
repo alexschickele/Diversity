@@ -14,6 +14,20 @@ source(file = "./code/00_config.R")
 # --- 1.4. Fake raster for later
 r0 <- terra::rast(nrows = 180, ncols = 360, xmin = -180, xmax = 180, ymin = -90, ymax = 90)
 
+# --- 2. Extract quality checks
+# --- 2.1. Extract global success
+all_files <- list.files(CEPHALOPOD_OUTPUT, recursive = TRUE)
+model_files <- unique(dirname(all_files[grepl("MODEL.RData", all_files)])) #%>% .[1:30]
+model_success <- mclapply(model_files, function(x){
+  memory_cleanup() # low memory use
+  load(paste0(CEPHALOPOD_OUTPUT,"/", x, "/MODEL.RData"))
+  return(MODEL$MODEL_LIST)
+}, mc.cores = MAX_CLUSTERS)
+
+# --- 2.2. Occurrence success rate
+model_success_occurrence <- table(unlist(model_success))/length(model_files)*100
+save(model_success_occurrence, file = paste0("./output/", FOLDER_NAME, "/OCCURRENCE_success.RData"))
+
 # --- 2. Build ensembles
 # --- 2.1. Extract file information
 # Which subfolder list and which model in the ensemble

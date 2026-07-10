@@ -34,10 +34,11 @@ message(">>> Starting to process the datasets")
 # --- 2. Extract files
 # and concatenate from PFG-level to class-level
 
-ATLANTECO_all_aggr <- mclapply(1:nrow(PARAMETER_TBL), function(x){
+ATLANTECO_all_aggr <- lapply(1:nrow(PARAMETER_TBL), function(x){
   
   # --- 2.1. Open file
   ATLANTECO_file <- vroom(ATLANTECO_filenames[PARAMETER_TBL$PFG[x]])
+  message(paste(ATLANTECO_filenames[PARAMETER_TBL$PFG[x]], "has", nrow(ATLANTECO_file), "rows \n"))
   colnames(ATLANTECO_file) <- tolower(colnames(ATLANTECO_file)) # harmonize to lower
   
   if(ATLANTECO_filenames[PARAMETER_TBL$PFG[x]] == "/nfs/kryo/work/public/shared/AtlantECO/BASE/v1_legagy/AtlantECO-BASE-v1_microbiome_traditional_Euphausiacea_abund+biomass_20221220.csv"){
@@ -126,7 +127,7 @@ ATLANTECO_all_aggr <- mclapply(1:nrow(PARAMETER_TBL), function(x){
   # --- 2.10. Return
   return(ATLANTECO_aggr)
   
-}, mc.cores = 10) %>% bind_rows()
+}) %>% bind_rows()
 
 # --- 2.10. Secure zero filtering
 # For some reason, I need a second check as the parallel function skips some zero's

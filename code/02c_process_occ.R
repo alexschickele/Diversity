@@ -1,3 +1,6 @@
+# This script processes the output of CEPHALOPOD, extracting all distribution 
+# estimates in one array as well as the environmental variable importance from 
+# each algorithm. 
 
 # --- 1. Initialize
 # --- 1.1. Set correct working directory

@@ -1,4 +1,6 @@
-# Plot the status of the data
+# This script performs analyses and figures on the observation level,
+# i.e., prior to the CEPHALOPOD modelling step.
+# This concerns mainly the spatial distribution of the observation and their taxonomic composition.
 
 # --- 1. Initialize
 # --- 1.1. Set correct working directory

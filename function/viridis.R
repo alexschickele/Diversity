@@ -49,3 +49,12 @@ curl_pal <- function(n){
   pal <- colorRampPalette(tmp)(n)
 } # END FUNCTION
 
+spectral_pal <- function(n) {
+  tmp <- c("black", "#9E0142", "#D53E4F", "#F46D43", "#FDAE61", "#FEE08B", "#FFFFBF", "#E6F598", "#ABDDA4", "#66C2A5", "#3288BD", "#5E4FA2", "black")
+  pal <- colorRampPalette(tmp)(n)
+} # END FUNCTION
+
+topo_pal <- function(n) {
+  tmp <- c("#f1e8c8", "#d8c58a", "#b5a65a", "#7f8f4e", "#536b43", "#6b5845", "#8a8178", "#d9d9d9")
+  pal <- colorRampPalette(tmp)(n)
+} # END FUNCTION

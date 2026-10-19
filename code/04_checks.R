@@ -1,3 +1,6 @@
+# This script performs analysis on the CEPHALOPOD modelling step performance
+# Extracts the predictive performance, success rate and extrapolation related to
+# each algorithm and associated diversity.
 
 # --- 1. Initialize
 # --- 1.1. Set correct working directory

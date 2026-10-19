@@ -1,3 +1,8 @@
+# This script prepares the input data required by CEPHALOPOD to estimate
+# diversity metrics distribution based on omics-derived observations.
+#
+# Source data are available at:
+# https://sunagawalab.ethz.ch/share/microbiomics/ocean/suppl_data/
 
 # --- 1. Initialize
 # --- 1.1. Set correct working directory

@@ -1,5 +1,7 @@
+# This script loads all correct libraries to perform analyses in the following scripts.
+
 # --- 1. System arguments
-# Have to load it this way otherwise crash tidy terra shit
+# Have to load it this way otherwise crash tidy terra
 library(ggplot2)
 library(tidyr)
 library(readr)

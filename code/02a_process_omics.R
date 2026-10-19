@@ -1,3 +1,6 @@
+# This script processes the output of CEPHALOPOD, extracting all distribution 
+# estimates in one array as well as the environmental variable importance from 
+# each algorithm. 
 
 # --- 1. Initialize
 # --- 1.1. Set correct working directory
@@ -6,8 +9,7 @@ setwd("/net/meso/work/aschickele/Diversity")
 # --- 1.2. Set folder name and Hill numbers to test
 FOLDER_NAME <- "DIVERSITY_PAPER"
 HILL_NB <- seq(0,5,0.25)
-# CEPHALOPOD_OUTPUT <- "/net/meso/work/aschickele/CEPHALOPOD/output/DIVERSITY_METAGENOMIC_2025-05-16 16:17:58.023044"
-# CEPHALOPOD_OUTPUT <- "/net/meso/work/aschickele/CEPHALOPOD/output/DIVERSITY_METAGENOMIC_RAREFIED_2025-06-16 16:33:14.774913"
+
 CEPHALOPOD_OUTPUT <- "/net/meso/work/aschickele/CEPHALOPOD/output/DIVERSITY_MOTU_RAREFIED_2025-06-17 14:21:26.693524"
 
 # --- 1.3. Source all libraries & functions

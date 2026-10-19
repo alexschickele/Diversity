@@ -1,3 +1,8 @@
+# This script prepares the input data required by CEPHALOPOD to estimate
+# diversity metrics distribution based on abundance and biomass observations.
+#
+# Source data are available at:
+# https://data.up.ethz.ch/shared/AtlantECO/BASE/v1_legacy/
 
 # --- 1. Initialize
 # --- 1.1. Set correct working directory

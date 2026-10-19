@@ -1,3 +1,8 @@
+# This script contains all analyses on CEPHALOPOD output to derive biodiversity
+# ecosystem functioning relationships.
+# It corresponds to Figure 4 and associated supplementary materials.
+
+# The ecosystem function layers can be downloaded from: https://www.nature.com/articles/s41467-021-25385-x
 
 # --- 1. Initialize
 # --- 1.1. Set correct working directory
